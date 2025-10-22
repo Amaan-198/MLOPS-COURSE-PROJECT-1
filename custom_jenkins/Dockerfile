@@ -6,7 +6,18 @@ USER root
 
 # Install prerequisites
 RUN apt-get update -y && \
-    apt-get install -y apt-transport-https ca-certificates curl gnupg2 lsb-release && \
+    apt-get install -y \
+        apt-transport-https \
+        ca-certificates \
+        curl \
+        gnupg2 \
+        lsb-release \
+        build-essential \
+        cmake \
+        python3-dev \
+        git \
+        libssl-dev \
+        libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # Add Docker official GPG key and repo
