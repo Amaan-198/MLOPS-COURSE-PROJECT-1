@@ -1,32 +1,26 @@
-# Use a lightweight Python image
-FROM python:slim
 
-# Set environment variables to prevent Python from writing .pyc files & ensure Python output is not buffered
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Use the Jenkins image as the base image
+FROM jenkins/jenkins:lts
 
-# Set working directory
-WORKDIR /app
+# Switch to root user to install dependencies
+USER root
 
-# Install system dependencies needed for pyarrow, LightGBM, and other compiled packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 \
-    build-essential \
-    cmake \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Install prerequisites and Docker
+RUN apt-get update -y && \
+    apt-get install -y apt-transport-https ca-certificates curl gnupg software-properties-common && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
+    echo "deb [arch=amd64] https://download.docker.com/linux/debian bullseye stable" > /etc/apt/sources.list.d/docker.list && \
+    apt-get update -y && \
+    apt-get install -y docker-ce docker-ce-cli containerd.io && \
+    apt-get clean
 
-# Copy all project files
-COPY . .
+# Add Jenkins user to the Docker group (create if it doesn't exist)
+RUN groupadd -f docker && \
+    usermod -aG docker jenkins
 
-# Install the Python package in editable mode
-RUN pip install --no-cache-dir -e .
+# Create the Docker directory and volume for DinD
+RUN mkdir -p /var/lib/docker
+VOLUME /var/lib/docker
 
-# Train the model before running the application
-RUN python pipeline/training_pipeline.py
-
-# Expose the port that Flask will run on
-EXPOSE 5000
-
-# Command to run the Flask app
-CMD ["python", "application.py"]
+# Switch back to the Jenkins user
+USER jenkins
