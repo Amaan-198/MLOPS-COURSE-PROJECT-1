@@ -8,10 +8,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Set working directory
 WORKDIR /app
 
-# ---- START: Add Apache Arrow Repository ----
-# Step 1: Install prerequisites for adding custom apt repositories and HTTPS transport
-#         'gnupg' for key management, 'lsb-release' to identify the Debian version,
-#         'wget' or 'curl' to download the key, 'ca-certificates' for HTTPS.
+# ---- START: Add Apache Arrow Repository (Corrected Method) ----
+# Step 1: Install prerequisites
 RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-transport-https \
     ca-certificates \
@@ -20,35 +18,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Step 2: Download and add the Apache Arrow GPG key to trusted keys
-RUN wget -O /usr/share/keyrings/apache-arrow-keyring.gpg https://downloads.apache.org/arrow/debian/apache-arrow-keyring.gpg
+# Step 2: Download the Apache Arrow repository setup package
+# Uses 'lsb_release -cs' to get the Debian codename (e.g., bullseye, bookworm, trixie)
+RUN DISTRO=$(lsb_release --codename --short) && \
+    wget "https://apache.jfrog.io/artifactory/arrow/debian/apache-arrow-apt-source-latest-${DISTRO}.deb"
 
-# Step 3: Add the Apache Arrow repository to apt sources.
-#         Uses 'lsb_release -cs' to automatically get the Debian codename (e.g., bullseye, bookworm, trixie).
-RUN echo "deb [signed-by=/usr/share/keyrings/apache-arrow-keyring.gpg] https://downloads.apache.org/arrow/debian $(lsb_release -cs) main" > /etc/apt/sources.list.d/apache-arrow.list
+# Step 3: Install the setup package (this adds the key and repo source list)
+#         Allow untrusted because we just downloaded it; apt update later verifies signatures.
+RUN apt-get update && apt-get install -y --allow-unauthenticated ./apache-arrow-apt-source-latest-*.deb
+
 # ---- END: Add Apache Arrow Repository ----
 
-# Step 4: Update apt package list again to include packages from the new Arrow repository,
-#         then install the required build tools and Arrow C++ development libraries.
-#         'build-essential' (includes C/C++ compilers, make), 'cmake', and 'libarrow-dev'.
-#         Also include 'libgomp1' which was needed by LightGBM or another dependency.
+# Step 4: Update apt package list again (now includes Arrow repo) and install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     libarrow-dev \
     libgomp1 \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm ./apache-arrow-apt-source-latest-*.deb # Clean up the downloaded .deb file
 
 # Step 5: Copy your project files into the image
 COPY . .
 
-# Step 6: Install Python dependencies using pip.
-#         'pip install -e .' will now find the system-installed libarrow-dev
-#         and should successfully build pyarrow.
+# Step 6: Install Python dependencies using pip
 RUN pip install --no-cache-dir -e .
 
-# Step 7: Train the model (if this is part of your build process)
+# Step 7: Train the model
 RUN python pipeline/training_pipeline.py
 
 # Step 8: Expose the application port
