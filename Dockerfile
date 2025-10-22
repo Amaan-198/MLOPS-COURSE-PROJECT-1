@@ -1,36 +1,34 @@
-# Use a lightweight Python image (Based on Debian)
-FROM python:3.13-slim
+# Use Python 3.11 slim image (compatible with pyarrow prebuilt wheel)
+FROM python:3.11-slim
 
-# Set environment variables for Python
+# Set environment variables to prevent Python from writing .pyc files & ensure unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies required for building wheels of some packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies needed for some Python packages
+RUN apt-get update && apt-get install -y \
     build-essential \
-    wget \
     curl \
-    ca-certificates \
-    && apt-get clean \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
+# Upgrade pip, setuptools, wheel
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install PyArrow from prebuilt wheel
+RUN pip install --no-cache-dir pyarrow==12.0.0
+
+# Copy the project files
 COPY . .
 
-# Install Python dependencies using pip
-# Pin pyarrow to a version with prebuilt wheels to avoid compilation issues
-RUN pip install --no-cache-dir -U pip setuptools wheel \
-    && pip install --no-cache-dir pyarrow==12.0.0 \
-    && pip install --no-cache-dir -e .
+# Install project dependencies
+RUN pip install --no-cache-dir -e .
 
-# Train the model
-RUN python pipeline/training_pipeline.py
-
-# Expose the application port
+# Expose the port
 EXPOSE 5000
 
-# Command to run the application
+# Start the Flask app
 CMD ["python", "application.py"]
