@@ -1,7 +1,7 @@
-# Use a lightweight Python image
+# Use a lightweight Python image (Based on Debian)
 FROM python:slim
 
-# Set environment variables
+# Set environment variables for Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -9,42 +9,50 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # ---- START: Add Apache Arrow Repository ----
-# Install prerequisites for adding custom apt repositories
+# Step 1: Install prerequisites for adding custom apt repositories and HTTPS transport
+#         'gnupg' for key management, 'lsb-release' to identify the Debian version,
+#         'wget' or 'curl' to download the key, 'ca-certificates' for HTTPS.
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    apt-transport-https \
+    ca-certificates \
     gnupg \
     lsb-release \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Import Apache Arrow GPG key
+# Step 2: Download and add the Apache Arrow GPG key to trusted keys
 RUN wget -O /usr/share/keyrings/apache-arrow-keyring.gpg https://downloads.apache.org/arrow/debian/apache-arrow-keyring.gpg
 
-# Add Apache Arrow repository
-# Need to evaluate lsb_release -cs inside the RUN command
+# Step 3: Add the Apache Arrow repository to apt sources.
+#         Uses 'lsb_release -cs' to automatically get the Debian codename (e.g., bullseye, bookworm, trixie).
 RUN echo "deb [signed-by=/usr/share/keyrings/apache-arrow-keyring.gpg] https://downloads.apache.org/arrow/debian $(lsb_release -cs) main" > /etc/apt/sources.list.d/apache-arrow.list
 # ---- END: Add Apache Arrow Repository ----
 
-# Install system dependencies including libarrow-dev FROM the Arrow repository
+# Step 4: Update apt package list again to include packages from the new Arrow repository,
+#         then install the required build tools and Arrow C++ development libraries.
+#         'build-essential' (includes C/C++ compilers, make), 'cmake', and 'libarrow-dev'.
+#         Also include 'libgomp1' which was needed by LightGBM or another dependency.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgomp1 \
     build-essential \
     cmake \
     libarrow-dev \
+    libgomp1 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy all project files
+# Step 5: Copy your project files into the image
 COPY . .
 
-# Install the Python package in editable mode
-# This should now succeed as libarrow-dev is installed
+# Step 6: Install Python dependencies using pip.
+#         'pip install -e .' will now find the system-installed libarrow-dev
+#         and should successfully build pyarrow.
 RUN pip install --no-cache-dir -e .
 
-# Train the model before running the application
+# Step 7: Train the model (if this is part of your build process)
 RUN python pipeline/training_pipeline.py
 
-# Expose the port that Flask will run on
+# Step 8: Expose the application port
 EXPOSE 5000
 
-# Command to run the Flask app
+# Step 9: Define the command to run the application
 CMD ["python", "application.py"]
