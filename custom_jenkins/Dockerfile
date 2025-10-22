@@ -1,40 +1,30 @@
-# Use Jenkins LTS as base
-FROM jenkins/jenkins:lts
+# Use a lightweight Python image
+FROM python:slim
 
-# Switch to root user
-USER root
+# Set environment variables to prevent Python from writing .pyc files & Ensure Python output is not buffered
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
-# Install prerequisites
-RUN apt-get update -y && \
-    apt-get install -y \
-        apt-transport-https \
-        ca-certificates \
-        curl \
-        gnupg2 \
-        lsb-release \
-        build-essential \
-        cmake \
-        python3-dev \
-        git \
-        libssl-dev \
-        libffi-dev && \
-    rm -rf /var/lib/apt/lists/*
+# Set the working directory
+WORKDIR /app
 
-# Add Docker official GPG key and repo
-RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+# Install system dependencies required by LightGBM
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Docker packages
-RUN apt-get update -y && \
-    apt-get install -y docker-ce docker-ce-cli containerd.io && \
-    rm -rf /var/lib/apt/lists/*
+# Copy the application code
+COPY . .
 
-# Add Jenkins user to Docker group
-RUN groupadd -f docker && usermod -aG docker jenkins
+# Install the package in editable mode
+RUN pip install --no-cache-dir -e .
 
-# Create Docker directory and volume for DinD
-RUN mkdir -p /var/lib/docker
-VOLUME /var/lib/docker
+# Train the model before running the application
+RUN python pipeline/training_pipeline.py
 
-# Switch back to Jenkins user
-USER jenkins
+# Expose the port that Flask will run on
+EXPOSE 5000
+
+# Command to run the app
+CMD ["python", "application.py"]
