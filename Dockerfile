@@ -1,34 +1,27 @@
-# Use Python 3.11 slim image (compatible with pyarrow prebuilt wheel)
+# Use Python 3.11 slim image
 FROM python:3.11-slim
 
-# Set environment variables to prevent Python from writing .pyc files & ensure unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies needed for some Python packages
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip, setuptools, wheel
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
-
-# Install PyArrow from prebuilt wheel
-RUN pip install --no-cache-dir pyarrow==12.0.0
-
-# Copy the project files
+# Copy project files
 COPY . .
 
-# Install project dependencies
-RUN pip install --no-cache-dir -e .
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+    && pip install --no-cache-dir -r requirements.txt
 
-# Expose the port
-EXPOSE 5000
+# Expose Cloud Run port
+EXPOSE 8080
 
-# Start the Flask app
-CMD ["python", "application.py"]
+# Start Flask app using Gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "application:app"]

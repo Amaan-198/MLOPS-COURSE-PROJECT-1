@@ -1,9 +1,15 @@
-pandas
-numpy
-google-cloud-storage
-scikit-learn
-pyyaml
-imbalanced-learn
-lightgbm
-mlflow
-flask
+# Core scientific libraries
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.4.2
+lightgbm==4.3.0
+imbalanced-learn==0.12.3
+
+# Cloud + MLflow + Flask
+mlflow==2.14.1
+flask==3.0.3
+gunicorn==22.0.0
+google-cloud-storage==2.16.0
+pyyaml==6.0.1
+pyarrow==12.0.0
+joblib==1.4.2
